@@ -1,18 +1,62 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <omp.h>
+#include <math.h>
 
 #define RANGE 10
 
-struct Node
+typedef struct Node
 {
     double **pts;
     double *center;
     double radius;
+    int n_dims;
+    int n_points;
 
     struct Node *left;
     struct Node *right;
+
 } node;
+
+node* newNode(double **arr)
+{   
+    node* aux = (node*)malloc(sizeof(node));
+    aux->pts = arr;
+    aux->n_points = sizeof(aux->pts);
+    aux->n_dims = sizeof(aux->pts[0]);
+    
+    aux->center = NULL;
+    aux->radius = 0;
+    // Left and right child for node
+    // will be initialized to null
+    aux->left = NULL;
+    aux->right = NULL;
+    
+    return aux;
+}
+
+
+double comp_dist(double *a, double *b , int *n_dims){
+    double aux, sum = 0, two = 2;
+    for(int i = 0; i < *n_dims; i++){
+        aux = a[i] - b[i];
+        aux = pow(aux, two);
+        sum += aux;
+    }
+    return sqrt(sum); 
+}
+
+double furthest(double **pt_arr,int n_points){
+    double *aux = pt_arr[0];
+    print("%d", sizeof(aux));
+    for (int i=0; i< sizeof(aux); i++){
+        printf("%f ", aux[i]);
+    }
+    for( int i=0; i< 2; i++){
+        //printf("%f ", pt_arr[0][i]);
+    }
+
+}
 
 double **create_array_pts(int n_dims, long np)
 {
@@ -62,6 +106,18 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
     return pt_arr;
 }
 
+void build_tree(node* root)
+{
+    
+    for (int i = 0; i < root->n_points; i++)
+    {
+        for (int j = 0; j < root->n_dims; j++)
+            printf("%f ", root->pts[i][j]);
+        printf("\n");
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     int n_dims = 0;
@@ -79,7 +135,10 @@ int main(int argc, char *argv[])
         printf("\n");
     }
 
-    root = build_tree();
+    furthest(pts,n_points);
+
+    node* root = newNode(pts);
+    //build_tree(root);
     //build tree
 
     exec_time += omp_get_wtime();
