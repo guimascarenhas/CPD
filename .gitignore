@@ -1,6 +1,10 @@
 # Vscode 
 .vscode/
 
+# exec
+ballAlg
+!*.c
+
 # Prerequisites
 *.d
 
