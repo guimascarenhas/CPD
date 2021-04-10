@@ -1,9 +1,11 @@
 # Vscode 
 .vscode/
 
-# exec
+# my changes
 ballAlg
 !*.c
+*.txt
+
 
 # Prerequisites
 *.d
