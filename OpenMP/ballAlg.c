@@ -4,6 +4,7 @@
 #include <math.h>
 
 #define RANGE 10
+#define OMP_NUM_THREADS 8
 
 typedef struct Node
 {
@@ -45,7 +46,11 @@ void dump_tree(node *root){
 
     if(root->right != NULL)
         dump_tree(root->right);
-
+/*
+    for(int i=0; i<root->n_points; i++){
+        free(root->pts[i]);
+    }
+    */
     free(root->pts);
     free(root->center);
     free(root);
@@ -84,6 +89,11 @@ int *furthest(double **pt_arr, long n_points, int n_dims)
     double *aux = pt_arr[0];
     double dist = 0, dist_max = 0;
     int ind_a = 0, ind_b = 0;
+    
+    /*
+    Forma mais eficaz é cada thread fazer o seu cálculo de dist_max
+    e depois comparar o resultado de todas elas (evita race condition)
+    */
     for (long i = 1; i < n_points; i++)
     {
         dist = comp_dist(aux, pt_arr[i], &n_dims);
@@ -127,15 +137,20 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
 {
     double *a = pt_arr[indices[0]];
     double *b = pt_arr[indices[1]];
+    long i;
     double aux1, aux2;
     double **return_ort = (double **)malloc(n_points * sizeof(double *));
+
+    double *x = (double *)malloc(sizeof(double) * n_dims);
+    double *y = (double *)malloc(sizeof(double) * n_dims);
+
+    #pragma omp parallel private(i)
+    {
+    #pragma omp for
     for (long i = 0; i < n_points; i++)
     {
         return_ort[i] = (double *)malloc(sizeof(double) * n_dims);
     }
-
-    double *x = (double *)malloc(sizeof(double) * n_dims);
-    double *y = (double *)malloc(sizeof(double) * n_dims);
 
     for (long i = 0; i < n_points; i++)
     {
@@ -159,10 +174,12 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
             }
         }
     }
+
     for (int j = 0; j < n_dims; j++)
     {
         return_ort[indices[0]][j] = a[j];
         return_ort[indices[1]][j] = b[j];
+    }
     }
     free(x);
     free(y);
@@ -440,7 +457,6 @@ int main(int argc, char *argv[])
 
     printTree(root, (max_id+1));
 
+    //dump tree
     //dump_tree(root);
-    if(root != NULL) dump_tree(root);
-    
 }

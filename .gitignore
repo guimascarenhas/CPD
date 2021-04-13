@@ -5,6 +5,7 @@
 ballAlg
 !*.c
 *.txt
+*.tree
 
 
 # Prerequisites
