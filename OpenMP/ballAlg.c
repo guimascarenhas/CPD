@@ -87,35 +87,73 @@ Retorna os indices dos dois pontos mais afastados um do outro
 int *furthest(double **pt_arr, long n_points, int n_dims)
 {
     double *aux = pt_arr[0];
-    double dist = 0, dist_max = 0;
+    double dist_max_b = -1;
+    double dist_max_a = -1;
     int ind_a = 0, ind_b = 0;
+    long i=0;
     
     /*
     Forma mais eficaz é cada thread fazer o seu cálculo de dist_max
     e depois comparar o resultado de todas elas (evita race condition)
     */
-    for (long i = 1; i < n_points; i++)
+    #pragma omp parallel private(i)
     {
+    double dist = 0;
+    double dist_max_local = 0;
+    long ind_local = 0;
+
+    #pragma omp for nowait
+    for (long i = 1; i < n_points; i++)
+    {   
         dist = comp_dist(aux, pt_arr[i], &n_dims);
-        if (dist > dist_max)
+        if (dist > dist_max_local)
         {
-            dist_max = dist;
-            ind_b = i;
+            dist_max_local = dist;
+            ind_local = i;
         }
     }
+    #pragma omp critical
+    {
+        if(dist_max_local > dist_max_b){
+            ind_b = ind_local;
+            dist_max_b = dist_max_local;
+        }
+    }
+
+    #pragma omp barrier
+    /*
+    printf("dist_max: %f", dist_max);
+    getchar();
     dist_max = 0;
+    */
+
+    dist = 0;
+    dist_max_local = 0;
+    ind_local = 0;
+
+    #pragma omp for nowait
     for (long i = 0; i < n_points; i++)
     {
         if (i != ind_b)
         {
             dist = comp_dist(pt_arr[ind_b], pt_arr[i], &n_dims);
-            if (dist > dist_max)
+            if (dist > dist_max_local)
             {
-                dist_max = dist;
-                ind_a = i;
+                dist_max_local = dist;
+                ind_local = i;
             }
         }
     }
+
+    #pragma omp critical
+    {
+        if(dist_max_local > dist_max_a){
+            ind_a = ind_local;
+            dist_max_a = dist_max_local;
+        }
+    }
+    }
+
     static int return_aux[2];
     return_aux[0] = ind_a;
     return_aux[1] = ind_b;
@@ -151,7 +189,9 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     {
         return_ort[i] = (double *)malloc(sizeof(double) * n_dims);
     }
+    }
 
+    
     for (long i = 0; i < n_points; i++)
     {
         if (i != indices[0] && i != indices[1])
@@ -179,7 +219,6 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     {
         return_ort[indices[0]][j] = a[j];
         return_ort[indices[1]][j] = b[j];
-    }
     }
     free(x);
     free(y);
@@ -426,7 +465,7 @@ void printTree(node *root, int n_nodes)
     puts("Escrita de ficheiro");
     ///////////////////////////////////////////////////////////////
     FILE *fp = NULL;
-    fp = fopen("exemplo.tree", "a");
+    fp = fopen("exemplogrande.tree", "w");
     if(!fp) perror("fopen");
     fprintf(fp, "%d %d\n", root->n_dims, n_nodes);
     ////////////////////////////////////////////////////////////////
@@ -455,7 +494,8 @@ int main(int argc, char *argv[])
     exec_time += omp_get_wtime();
     fprintf(stderr, "%.1lf s\n", exec_time);
 
-    printTree(root, (max_id+1));
+    
+    if(root != NULL) printTree(root, (max_id+1));
 
     //dump tree
     //dump_tree(root);
