@@ -52,6 +52,10 @@ void dump_tree(node *root){
     return;
 }
 
+/*
+Recebe dois pontos e o número de dimensões destes pontos
+Calcula e retorna a distancia entre eles
+*/
 double comp_dist(double *a, double *b, int *n_dims)
 {
     double aux, sum = 0, two = 2;
@@ -64,6 +68,11 @@ double comp_dist(double *a, double *b, int *n_dims)
     return sqrt(sum);
 }
 
+/*
+Rcebe coordenadas do centro, ponto A e ponto B.
+Chama a função que computa a distância do centro a cada um dos pontos.
+Retorna a maior das distâncias
+*/
 double calcRadius(double **pt_arr, int n_dims, int *indices, double *center)
 {
     double dist_a = comp_dist(pt_arr[indices[0]], center, &n_dims);
@@ -73,6 +82,19 @@ double calcRadius(double **pt_arr, int n_dims, int *indices, double *center)
         return dist_a;
     else
         return dist_b;
+}
+
+
+double calcRadius2(double **pt_arr, int n_dims, double *center, int n_points)
+{
+    double dist_max = 0, dist = 0;
+    for(int i = 0; i < n_points; i++){
+        dist = comp_dist(pt_arr[i], center, &n_dims);
+        if(dist > dist_max){
+            dist_max = dist;
+        }
+    }
+    return dist_max;
 }
 
 /*
@@ -109,9 +131,14 @@ int *furthest(double **pt_arr, long n_points, int n_dims)
     static int return_aux[2];
     return_aux[0] = ind_a;
     return_aux[1] = ind_b;
+
     return return_aux;
 }
 
+/*
+Recebe dois vetores (e o nº de dimensões dos vetores)
+Calacula e retorna o produto interno dos dois
+*/
 double inner_product(double *x, double *y, int n_dims)
 {
     double result = 0;
@@ -301,7 +328,8 @@ int build_tree(node *root, int id)
 
         // Calcualte center and divide (verificar numero de pontos)
         root->center = center(orto_points, root->n_points, root->n_dims, indices);
-        root->radius = calcRadius(root->pts, root->n_dims, indices, root->center);
+        //root->radius = calcRadius(root->pts, root->n_dims, indices, root->center);
+        root->radius = calcRadius2(root->pts, root->n_dims, root->center, root->n_points);
 
         int l_id = 0, r_id = 0;
         for (long i = 0; i < root->n_points; i++)
@@ -409,7 +437,7 @@ void printTree(node *root, int n_nodes)
     puts("Escrita de ficheiro");
     ///////////////////////////////////////////////////////////////
     FILE *fp = NULL;
-    fp = fopen("exemplo.tree", "a");
+    fp = fopen("exemplo.tree", "w");
     if(!fp) perror("fopen");
     fprintf(fp, "%d %d\n", root->n_dims, n_nodes);
     ////////////////////////////////////////////////////////////////
@@ -425,8 +453,8 @@ int main(int argc, char *argv[])
     long n_points = 0;
     double **pts;
     int max_id = 0;
-
     double exec_time;
+
     exec_time = -omp_get_wtime();
     pts = get_points(argc, argv, &n_dims, &n_points);
 
