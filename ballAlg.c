@@ -37,6 +37,14 @@ node *newNode(double **arr, long n_points, int n_dims, int id)
     return aux;
 }
 
+double* copy_vector(double* vector, int n_dims){
+    double *aux = (double *)malloc(n_dims * sizeof(double));
+
+    for(int i=0; i < n_dims; i++){
+        aux[i] = vector[i];
+    }
+    return aux;
+}
 
 
 void dump_tree(node *root){
@@ -46,7 +54,6 @@ void dump_tree(node *root){
     if(root->right != NULL)
         dump_tree(root->right);
 
-    free(root->pts);
     free(root->center);
     free(root);
     return;
@@ -56,10 +63,10 @@ void dump_tree(node *root){
 Recebe dois pontos e o número de dimensões destes pontos
 Calcula e retorna a distancia entre eles
 */
-double comp_dist(double *a, double *b, int *n_dims)
+double comp_dist(double *a, double *b, int n_dims)
 {
     double aux, sum = 0, two = 2;
-    for (int i = 0; i < *n_dims; i++)
+    for (int i = 0; i < n_dims; i++)
     {
         aux = a[i] - b[i];
         aux = pow(aux, two);
@@ -75,8 +82,8 @@ Retorna a maior das distâncias
 */
 double calcRadius(double **pt_arr, int n_dims, int *indices, double *center)
 {
-    double dist_a = comp_dist(pt_arr[indices[0]], center, &n_dims);
-    double dist_b = comp_dist(pt_arr[indices[1]], center, &n_dims);
+    double dist_a = comp_dist(pt_arr[indices[0]], center, n_dims);
+    double dist_b = comp_dist(pt_arr[indices[1]], center, n_dims);
 
     if (dist_a > dist_b)
         return dist_a;
@@ -89,7 +96,7 @@ double calcRadius2(double **pt_arr, int n_dims, double *center, int n_points)
 {
     double dist_max = 0, dist = 0;
     for(int i = 0; i < n_points; i++){
-        dist = comp_dist(pt_arr[i], center, &n_dims);
+        dist = comp_dist(pt_arr[i], center, n_dims);
         if(dist > dist_max){
             dist_max = dist;
         }
@@ -108,7 +115,7 @@ int *furthest(double **pt_arr, long n_points, int n_dims)
     int ind_a = 0, ind_b = 0;
     for (long i = 1; i < n_points; i++)
     {
-        dist = comp_dist(aux, pt_arr[i], &n_dims);
+        dist = comp_dist(aux, pt_arr[i], n_dims);
         if (dist > dist_max)
         {
             dist_max = dist;
@@ -120,7 +127,7 @@ int *furthest(double **pt_arr, long n_points, int n_dims)
     {
         if (i != ind_b)
         {
-            dist = comp_dist(pt_arr[ind_b], pt_arr[i], &n_dims);
+            dist = comp_dist(pt_arr[ind_b], pt_arr[i], n_dims);
             if (dist > dist_max)
             {
                 dist_max = dist;
@@ -155,10 +162,13 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     double *a = pt_arr[indices[0]];
     double *b = pt_arr[indices[1]];
     double aux1, aux2;
+
+    double *_return_ort = (double *) malloc(n_dims * n_points * sizeof(double));
     double **return_ort = (double **)malloc(n_points * sizeof(double *));
+
     for (long i = 0; i < n_points; i++)
     {
-        return_ort[i] = (double *)malloc(sizeof(double) * n_dims);
+        return_ort[i] = &_return_ort[i * n_dims];
     }
 
     double *x = (double *)malloc(sizeof(double) * n_dims);
@@ -198,16 +208,19 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
 
 double **create_array_pts(int n_dims, long np)
 {
+    double *_p_arr;
     double **p_arr;
-    p_arr = (double **)malloc(np * sizeof(double *));
-    if (p_arr == NULL)
-    {
+
+    _p_arr = (double *) malloc(n_dims * np * sizeof(double));
+    p_arr = (double **) malloc(np * sizeof(double *));
+    if((_p_arr == NULL) || (p_arr == NULL)){
         printf("Error allocating array of points, exiting.\n");
         exit(4);
     }
-    for (int i = 0; i < np; i++)
-        p_arr[i] = (double *)malloc(n_dims* sizeof(double));
-        
+
+    for(long i = 0; i < np; i++)
+        p_arr[i] = &_p_arr[i * n_dims];
+
     return p_arr;
 }
 
@@ -276,7 +289,7 @@ double *avgPoint(double *a, double *b, int n_dims)
 
 double *center(double **orto_points, long n_points, int n_dims, int *indices)
 {
-    double *center = (double *)malloc(sizeof(double) * n_dims);
+    double *center;
     double *aux = (double *)malloc(sizeof(double) * n_points);
     for (int i = 0; i < n_dims; i++){
         for (long j = 0; j < n_points; j++)
@@ -297,7 +310,7 @@ double *center(double **orto_points, long n_points, int n_dims, int *indices)
     }*/
     if (n_points % 2 != 0)
     {
-        center = find(orto_points, aux[(int)n_points / 2], n_points);
+        center = copy_vector(find(orto_points, aux[(int)n_points / 2], n_points), n_dims);
     }
     else if (n_points % 2 == 0)
     {
@@ -318,6 +331,7 @@ int build_tree(node *root, int id)
         // Work on this node
         int *indices;
         indices = furthest(root->pts, root->n_points, root->n_dims);
+
         int half = root->n_points / 2;
         double **left = (double **)malloc(sizeof(double *) * half);
         double **right = (double **)malloc(sizeof(double *) * (half + 1));
@@ -346,18 +360,8 @@ int build_tree(node *root, int id)
             }
         }
 
-        // Print ID of node
-        //print (radius & center)
-        /*
-        printf("-------------------- \n");
-        printf("Radius: %f \n", root->radius);
-        printf("Center: ");
-        for (int i = 0; i < root->n_dims; i++)
-        {
-            printf("%f ", root->center[i]);
-        }
-        printf("\nNPoints: %d\n", root->n_points);
-        */
+        free(orto_points[0]);
+        free(orto_points);
 
         // call left node
         int _id = id + 1;
@@ -371,12 +375,14 @@ int build_tree(node *root, int id)
         root->right = n_right;
         _id = build_tree(n_right, _id);
 
+        free(left);
+        free(right);
         return _id;
     }
     else
     {
         root->radius = 0;
-        root->center = root->pts[0];
+        root->center = copy_vector(root->pts[0], root->n_dims);
         // Print ID of node
         //print (radius & center)
         /*
@@ -470,5 +476,8 @@ int main(int argc, char *argv[])
 
     //dump_tree(root);
     if(root != NULL) dump_tree(root);
+    
+    free(pts[0]);
+    free(pts);
     
 }

@@ -3,3 +3,6 @@ ballAlg: ballAlg.c
 	
 clean:
 		rm -f *.o ballAlg
+
+valgrind:
+		valgrind --leak-check=full ./ballAlg 2 5 0
