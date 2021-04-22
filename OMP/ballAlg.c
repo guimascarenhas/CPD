@@ -133,7 +133,7 @@ int *furthest(double **pt_arr, long n_points, int n_dims)
             }
         }
     }
-    static int return_aux[2];
+    int* return_aux = (int*)malloc(2*sizeof(int));
     return_aux[0] = ind_a;
     return_aux[1] = ind_b;
 
@@ -318,8 +318,9 @@ void build_tree(node *root)
     if (root->n_points > 1)
     {
         // Work on this node
-        int *indices;
-        indices = furthest(root->pts, root->n_points, root->n_dims);
+        int *indices = furthest(root->pts, root->n_points, root->n_dims);
+
+        //printf("%d %d %d\n", root->n_points, indices[0], indices[1]);
 
         int half = root->n_points / 2;
         double **left = (double **)malloc(sizeof(double *) * half);
@@ -333,6 +334,8 @@ void build_tree(node *root)
         root->center = center(orto_points, root->n_points, root->n_dims, indices);
         //root->radius = calcRadius(root->pts, root->n_dims, indices, root->center);
         root->radius = calcRadius(root->pts, root->n_dims, root->center, root->n_points);
+
+        free(indices);
 
         int l_id = 0, r_id = 0;
         for (long i = 0; i < root->n_points; i++)
@@ -388,7 +391,7 @@ void build_tree(node *root)
             #pragma omp taskwait
         }
         else{
-            printf("Estou teso de threads \n");
+            //printf("Estou teso de threads \n");
             node *n_left = newNode(left, l_id, root->n_dims, 0);
             root->left = n_left;
             //printf("\t left\n");

@@ -1,5 +1,5 @@
 ballAlg: ballAlg.c 
-	gcc -O3 -fopenmp ballAlg.c -o ballAlg -lm
+	gcc -g -fopenmp ballAlg.c -o ballAlg -lm
 	
 clean:
 		rm -f *.o ballAlg 
