@@ -37,6 +37,9 @@ node *newNode(double **arr, long n_points, int n_dims, int id)
     return aux;
 }
 
+/*
+Como o nome indica retorna um vetor que é a copia do argumento
+*/
 double* copy_vector(double* vector, int n_dims){
     double *aux = (double *)malloc(n_dims * sizeof(double));
 
@@ -46,7 +49,10 @@ double* copy_vector(double* vector, int n_dims){
     return aux;
 }
 
-
+/*
+Função recursiva que dá "free" nos 
+vários nós da àrvore binaria
+*/
 void dump_tree(node *root){
     if(root->left != NULL)
         dump_tree(root->left);
@@ -91,7 +97,11 @@ double calcRadius(double **pt_arr, int n_dims, int *indices, double *center)
         return dist_b;
 }
 
-
+/*
+Rcebe os pontos do cluster
+Chama a função que computa a distância do centro a cada um desses pontos.
+Retorna a maior das distâncias
+*/
 double calcRadius2(double **pt_arr, int n_dims, double *center, int n_points)
 {
     double dist_max = 0, dist = 0;
@@ -157,6 +167,12 @@ double inner_product(double *x, double *y, int n_dims)
     return result;
 }
 
+
+/*
+Rcebe o cluster de pontos e os indices dos pontos que irão formar a reta para o qual todos os pontos se irão projetar.
+Computa a projeção na reta de todos os pontos do cluster.
+Retorna as coordenadas das projeções de todos os pontos do cluster na reta
+*/
 double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
 {
     double *a = pt_arr[indices[0]];
@@ -206,6 +222,9 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     return return_ort;
 }
 
+/*
+Aloca um arrar de pontos com base no numero total de pontos bem como o numero de coordenadas por pontos
+*/
 double **create_array_pts(int n_dims, long np)
 {
     double *_p_arr;
@@ -287,6 +306,10 @@ double *avgPoint(double *a, double *b, int n_dims)
     return ret_vect;
 }
 
+/*
+Rcebe o cluster de pontos nas suas projecoes ortogonais.
+Retorna as coordenadas do ponto central das projecoes ortogonais.
+*/
 double *center(double **orto_points, long n_points, int n_dims, int *indices)
 {
     double *center;
@@ -303,11 +326,6 @@ double *center(double **orto_points, long n_points, int n_dims, int *indices)
         }
     }
 
-    /*printf("Ordered:\n");
-    for (long j = 0; j < n_points; j++)
-    {
-        printf("%f\n", aux[j]);
-    }*/
     if (n_points % 2 != 0)
     {
         center = copy_vector(find(orto_points, aux[(int)n_points / 2], n_points), n_dims);
@@ -320,6 +338,9 @@ double *center(double **orto_points, long n_points, int n_dims, int *indices)
     return center;
 }
 
+/*
+Funcao recursiva que recebendo um cluster (root) constroi a restante arvore
+*/
 int build_tree(node *root, int id)
 {
     if (root == NULL)
