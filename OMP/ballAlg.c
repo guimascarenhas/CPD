@@ -309,11 +309,11 @@ double *center(double **orto_points, long n_points, int n_dims, int *indices)
     return center;
 }
 
-int build_tree(node *root, int id)
+void build_tree(node *root)
 {
     if (root == NULL)
     {
-        return -1;
+        return ;
     }
     if (root->n_points > 1)
     {
@@ -353,7 +353,6 @@ int build_tree(node *root, int id)
         free(orto_points);
 
         // call left node
-        int _id = id + 1;
 
         
         if(n_threads > 1 )
@@ -364,9 +363,9 @@ int build_tree(node *root, int id)
             printf("left\n");
             #pragma omp task
             {
-                node *n_left = newNode(left, l_id, root->n_dims, _id);
+                node *n_left = newNode(left, l_id, root->n_dims, 0);
                 root->left = n_left;
-                _id = build_tree(n_left, _id);
+                build_tree(n_left);
                 #pragma omp atomic
                 n_threads++;
             }
@@ -377,12 +376,11 @@ int build_tree(node *root, int id)
             n_threads--;
 
             printf("right\n");
-            #pragma omp task firstprivate(right)
+            #pragma omp task
             {
-                _id += 1;
-                node *n_right = newNode(right, r_id, root->n_dims, _id);
+                node *n_right = newNode(right, r_id, root->n_dims, 0);
                 root->right = n_right;
-                _id = build_tree(n_right, _id);
+                build_tree(n_right);
                 #pragma omp atomic
                 n_threads++;
             }
@@ -390,50 +388,52 @@ int build_tree(node *root, int id)
             #pragma omp taskwait
         }
         else{
-            node *n_left = newNode(left, l_id, root->n_dims, _id);
+            printf("Estou teso de threads \n");
+            node *n_left = newNode(left, l_id, root->n_dims, 0);
             root->left = n_left;
-            _id = build_tree(n_left, _id);
+            //printf("\t left\n");
+            build_tree(n_left);
             // call right node
-            _id += 1;
-            node *n_right = newNode(right, r_id, root->n_dims, _id);
+            node *n_right = newNode(right, r_id, root->n_dims, 0);
             root->right = n_right;
-            _id = build_tree(n_right, _id);
+            //printf("\t right\n");
+            build_tree(n_right);
         }
 
         free(left);
         free(right);
-        return _id;
+        return ;
     }
     else
     {
         root->radius = 0;
         root->center = copy_vector(root->pts[0], root->n_dims);
-        return id;
+        return ;
     }
 }
 
-void printNode(node *root, FILE* fp)
+void printNode(node *root, FILE* fp, int my_id)
 {
     int id_left;
     int id_right;
-    main_id +=1;
-    root->id = main_id;
+    //main_id +=1;
+    //root->id = main_id;
 
     if (root->left == NULL)
         id_left = -1;
     else
-        id_left = root->left->id;
+        id_left = my_id+1;
     if (root->right == NULL)
         id_right = -1;
     else
-        id_right = root->right->id;
+        id_right = my_id + 2*root->left->n_points;
 
     if (root->left != NULL)
-        printNode(root->left, fp);
+        printNode(root->left, fp, my_id+1);
     if (root->right != NULL)
-        printNode(root->right, fp);
+        printNode(root->right, fp, my_id + 2*root->left->n_points);
 
-    fprintf(fp, "%d %d %d %f ", root->id, id_left, id_right, root->radius);
+    fprintf(fp, "%d %d %d %f ", my_id, id_left, id_right, root->radius);
     for (int j = 0; j < root->n_dims; j++)
     {
         fprintf(fp, "%f ", root->center[j]);
@@ -452,9 +452,9 @@ void printTree(node *root, int n_nodes)
     FILE *fp = NULL;
     fp = fopen("exemplo.tree", "w");
     if(!fp) perror("fopen");
-    fprintf(fp, "%d %d\n", root->n_dims, n_nodes);
+    fprintf(fp, "%d %d\n", root->n_dims, 2*root->n_points - 1);
     
-    printNode(root, fp);
+    printNode(root, fp, 0);
     fclose(fp);
 }
 
@@ -480,16 +480,16 @@ int main(int argc, char *argv[])
     {
         #pragma omp single
         {
-            max_id=build_tree(root, 0);
+            build_tree(root);
             #pragma omp atomic
                 n_threads++;
         }
     }
 
     exec_time += omp_get_wtime();
-    fprintf(stderr, "%.1lf s\n", exec_time);
+    fprintf(stderr, "%.2lf s\n", exec_time);
 
-    printTree(root, (max_id+1));
+    printTree(root,0);
 
     //dump_tree(root);
     if(root != NULL) dump_tree(root);

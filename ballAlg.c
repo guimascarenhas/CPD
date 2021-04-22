@@ -441,18 +441,18 @@ void printNode(node *root, FILE* fp)
         printNode(root->right, fp);
 
     ///////////////////////////////////////////////////////////////
-    fprintf(fp, "%d %d %d %f ", root->id, id_left, id_right, root->radius);
+    printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
     //printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
     ////////////////////////////////////////////////////////////////
     //printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
     for (int j = 0; j < root->n_dims; j++)
     {
-        fprintf(fp, "%f ", root->center[j]);
+        printf("%f ", root->center[j]);
         //printf( "%f ", root->center[j]);
     }
-    fprintf(fp, "\n");
+    printf("\n");
     //printf("\n");
-    if(root->id == 0) puts("rute");
+    //if(root->id == 0) puts("rute");
 }
 
 /*
@@ -461,12 +461,12 @@ Chama a função printNode
 */
 void printTree(node *root, int n_nodes)
 {
-    puts("Escrita de ficheiro");
+    //puts("Escrita de ficheiro");
     ///////////////////////////////////////////////////////////////
     FILE *fp = NULL;
     fp = fopen("exemplo.tree", "w");
     if(!fp) perror("fopen");
-    fprintf(fp, "%d %d\n", root->n_dims, n_nodes);
+    printf("%d %d\n", root->n_dims, n_nodes);
     ////////////////////////////////////////////////////////////////
 
     //printf("%d %d\n", root->n_dims, n_nodes);
@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
     max_id=build_tree(root, 0);
 
     exec_time += omp_get_wtime();
-    fprintf(stderr, "%.1lf s\n", exec_time);
+    //fprintf(stderr, "%.1lf s\n", exec_time);
 
     printTree(root, (max_id+1));
 
