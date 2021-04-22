@@ -7,6 +7,7 @@
 #define OMP_NUM_THREADS 8
 
 int n_threads;
+int main_id=-1;
 
 typedef struct Node
 {
@@ -355,7 +356,7 @@ int build_tree(node *root, int id)
         int _id = id + 1;
 
         
-        if(n_threads > 1 && root->n_points > 1000)
+        if(n_threads > 1 )
         {   
             #pragma omp atomic
                 n_threads--;
@@ -396,7 +397,6 @@ int build_tree(node *root, int id)
             _id += 1;
             node *n_right = newNode(right, r_id, root->n_dims, _id);
             root->right = n_right;
-
             _id = build_tree(n_right, _id);
         }
 
@@ -408,14 +408,16 @@ int build_tree(node *root, int id)
     {
         root->radius = 0;
         root->center = copy_vector(root->pts[0], root->n_dims);
+        return id;
     }
-    return id;
 }
 
 void printNode(node *root, FILE* fp)
 {
     int id_left;
     int id_right;
+    main_id +=1;
+    root->id = main_id;
 
     if (root->left == NULL)
         id_left = -1;
