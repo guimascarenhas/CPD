@@ -3,10 +3,10 @@
 
 # my changes
 ballAlg
+ballAlg-omp
 !*.c
 *.txt
 *.tree
-
 
 # Prerequisites
 *.d

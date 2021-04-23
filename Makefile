@@ -1,8 +1,10 @@
+all: ballAlg ballAlg-omp
+
 ballAlg: ballAlg.c 
 	gcc -O3 -fopenmp ballAlg.c -o ballAlg -lm
+
+ballAlg-omp: ballAlg-omp.c
+	gcc -O3 -fopenmp ballAlg-omp.c -o ballAlg-omp -lm
 	
 clean:
-		rm -f *.o ballAlg
-
-valgrind:
-		valgrind --leak-check=full ./ballAlg 2 5 0
+		rm -f *.o ballAlg ballAlg-omp

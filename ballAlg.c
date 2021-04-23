@@ -82,27 +82,11 @@ double comp_dist(double *a, double *b, int n_dims)
 }
 
 /*
-Rcebe coordenadas do centro, ponto A e ponto B.
-Chama a função que computa a distância do centro a cada um dos pontos.
-Retorna a maior das distâncias
-*/
-double calcRadius(double **pt_arr, int n_dims, int *indices, double *center)
-{
-    double dist_a = comp_dist(pt_arr[indices[0]], center, n_dims);
-    double dist_b = comp_dist(pt_arr[indices[1]], center, n_dims);
-
-    if (dist_a > dist_b)
-        return dist_a;
-    else
-        return dist_b;
-}
-
-/*
 Rcebe os pontos do cluster
 Chama a função que computa a distância do centro a cada um desses pontos.
 Retorna a maior das distâncias
 */
-double calcRadius2(double **pt_arr, int n_dims, double *center, int n_points)
+double calcRadius(double **pt_arr, int n_dims, double *center, int n_points)
 {
     double dist_max = 0, dist = 0;
     for(int i = 0; i < n_points; i++){
@@ -167,6 +151,27 @@ double inner_product(double *x, double *y, int n_dims)
     return result;
 }
 
+/*
+Aloca um arrar de pontos com base no numero total de pontos bem como o numero de coordenadas por pontos
+*/
+double **create_array_pts(int n_dims, long np)
+{
+    double *_p_arr;
+    double **p_arr;
+
+    _p_arr = (double *) malloc(n_dims * np * sizeof(double));
+    p_arr = (double **) malloc(np * sizeof(double *));
+    if((_p_arr == NULL) || (p_arr == NULL)){
+        printf("Error allocating array of points, exiting.\n");
+        exit(4);
+    }
+
+    for(long i = 0; i < np; i++)
+        p_arr[i] = &_p_arr[i * n_dims];
+
+    return p_arr;
+}
+
 
 /*
 Rcebe o cluster de pontos e os indices dos pontos que irão formar a reta para o qual todos os pontos se irão projetar.
@@ -178,14 +183,8 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     double *a = pt_arr[indices[0]];
     double *b = pt_arr[indices[1]];
     double aux1, aux2;
-
-    double *_return_ort = (double *) malloc(n_dims * n_points * sizeof(double));
-    double **return_ort = (double **)malloc(n_points * sizeof(double *));
-
-    for (long i = 0; i < n_points; i++)
-    {
-        return_ort[i] = &_return_ort[i * n_dims];
-    }
+    
+    double **return_ort = create_array_pts(n_dims, n_points);
 
     double *x = (double *)malloc(sizeof(double) * n_dims);
     double *y = (double *)malloc(sizeof(double) * n_dims);
@@ -222,26 +221,7 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     return return_ort;
 }
 
-/*
-Aloca um arrar de pontos com base no numero total de pontos bem como o numero de coordenadas por pontos
-*/
-double **create_array_pts(int n_dims, long np)
-{
-    double *_p_arr;
-    double **p_arr;
 
-    _p_arr = (double *) malloc(n_dims * np * sizeof(double));
-    p_arr = (double **) malloc(np * sizeof(double *));
-    if((_p_arr == NULL) || (p_arr == NULL)){
-        printf("Error allocating array of points, exiting.\n");
-        exit(4);
-    }
-
-    for(long i = 0; i < np; i++)
-        p_arr[i] = &_p_arr[i * n_dims];
-
-    return p_arr;
-}
 
 double **get_points(int argc, char *argv[], int *n_dims, long *np)
 {
@@ -361,10 +341,9 @@ int build_tree(node *root, int id)
         double **orto_points;
         orto_points = ort_proj(root->pts, root->n_points, root->n_dims, indices);
 
-        // Calcualte center and divide (verificar numero de pontos)
+        // Calcualte center and divide 
         root->center = center(orto_points, root->n_points, root->n_dims, indices);
-        //root->radius = calcRadius(root->pts, root->n_dims, indices, root->center);
-        root->radius = calcRadius2(root->pts, root->n_dims, root->center, root->n_points);
+        root->radius = calcRadius(root->pts, root->n_dims, root->center, root->n_points);
 
         int l_id = 0, r_id = 0;
         for (long i = 0; i < root->n_points; i++)
@@ -404,24 +383,11 @@ int build_tree(node *root, int id)
     {
         root->radius = 0;
         root->center = copy_vector(root->pts[0], root->n_dims);
-        // Print ID of node
-        //print (radius & center)
-        /*
-        printf("--------------------end \n");
-        printf("Radius: %f \n", root->radius);
-        printf("Center: ");
-        for (int i = 0; i < root->n_dims; i++)
-        {
-            printf("%f ", root->center[i]);
-        }
-        printf("\nNPoints: %d\n", root->n_points);
-        printf("Id: %d\n", id);
-        */
     }
     return id;
 }
 
-void printNode(node *root, FILE* fp)
+void printNode(node *root)
 {
     int id_left;
     int id_right;
@@ -436,23 +402,18 @@ void printNode(node *root, FILE* fp)
         id_right = root->right->id;
 
     if (root->left != NULL)
-        printNode(root->left, fp);
+        printNode(root->left);
     if (root->right != NULL)
-        printNode(root->right, fp);
+        printNode(root->right);
 
-    ///////////////////////////////////////////////////////////////
     printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
-    //printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
-    ////////////////////////////////////////////////////////////////
-    //printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
+
     for (int j = 0; j < root->n_dims; j++)
     {
         printf("%f ", root->center[j]);
-        //printf( "%f ", root->center[j]);
     }
     printf("\n");
-    //printf("\n");
-    //if(root->id == 0) puts("rute");
+
 }
 
 /*
@@ -461,17 +422,8 @@ Chama a função printNode
 */
 void printTree(node *root, int n_nodes)
 {
-    //puts("Escrita de ficheiro");
-    ///////////////////////////////////////////////////////////////
-    FILE *fp = NULL;
-    fp = fopen("exemplo.tree", "w");
-    if(!fp) perror("fopen");
     printf("%d %d\n", root->n_dims, n_nodes);
-    ////////////////////////////////////////////////////////////////
-
-    //printf("%d %d\n", root->n_dims, n_nodes);
-    printNode(root, fp);
-    fclose(fp);
+    printNode(root);
 }
 
 int main(int argc, char *argv[])
@@ -491,14 +443,16 @@ int main(int argc, char *argv[])
     max_id=build_tree(root, 0);
 
     exec_time += omp_get_wtime();
-    //fprintf(stderr, "%.1lf s\n", exec_time);
+    fprintf(stderr, "%.1lf\n", exec_time);
+
+    free(pts[0]);
+    free(pts);
 
     printTree(root, (max_id+1));
 
     //dump_tree(root);
     if(root != NULL) dump_tree(root);
     
-    free(pts[0]);
-    free(pts);
+
     
 }
