@@ -99,8 +99,9 @@ double calcRadius(double **pt_arr, int n_dims, double *center, int n_points)
 }
 
 /*
-Recebe o conjunto de pontos (vetor)
-Retorna os indices dos dois pontos mais afastados um do outro
+Rcebe coordenadas do centro e um conjunto de pontos
+Chama a função que computa a distância do centro a cada um dos pontos.
+Retorna a maior das distâncias (raio)
 */
 int *furthest(double **pt_arr, long n_points, int n_dims)
 {
@@ -129,7 +130,7 @@ int *furthest(double **pt_arr, long n_points, int n_dims)
             }
         }
     }
-    static int return_aux[2];
+    int* return_aux = (int*)malloc(2*sizeof(int));
     return_aux[0] = ind_a;
     return_aux[1] = ind_b;
 
@@ -171,7 +172,6 @@ double **create_array_pts(int n_dims, long np)
 
     return p_arr;
 }
-
 
 /*
 Rcebe o cluster de pontos e os indices dos pontos que irão formar a reta para o qual todos os pontos se irão projetar.
@@ -220,8 +220,6 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     free(y);
     return return_ort;
 }
-
-
 
 double **get_points(int argc, char *argv[], int *n_dims, long *np)
 {
@@ -344,6 +342,8 @@ int build_tree(node *root, int id)
         // Calcualte center and divide 
         root->center = center(orto_points, root->n_points, root->n_dims, indices);
         root->radius = calcRadius(root->pts, root->n_dims, root->center, root->n_points);
+
+        free(indices);
 
         int l_id = 0, r_id = 0;
         for (long i = 0; i < root->n_points; i++)

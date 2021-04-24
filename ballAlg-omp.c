@@ -4,10 +4,8 @@
 #include <math.h>
 
 #define RANGE 10
-#define OMP_NUM_THREADS 8
 
 int n_threads;
-int main_id=-1;
 
 typedef struct Node
 {
@@ -155,19 +153,39 @@ double inner_product(double *x, double *y, int n_dims)
     return result;
 }
 
+/*
+Aloca um arrar de pontos com base no numero total de pontos bem como o numero de coordenadas por pontos
+*/
+double **create_array_pts(int n_dims, long np)
+{
+    double *_p_arr;
+    double **p_arr;
+
+    _p_arr = (double *) malloc(n_dims * np * sizeof(double));
+    p_arr = (double **) malloc(np * sizeof(double *));
+    if((_p_arr == NULL) || (p_arr == NULL)){
+        printf("Error allocating array of points, exiting.\n");
+        exit(4);
+    }
+
+    for(long i = 0; i < np; i++)
+        p_arr[i] = &_p_arr[i * n_dims];
+
+    return p_arr;
+}
+
+/*
+Rcebe o cluster de pontos e os indices dos pontos que irão formar a reta para o qual todos os pontos se irão projetar.
+Computa a projeção na reta de todos os pontos do cluster.
+Retorna as coordenadas das projeções de todos os pontos do cluster na reta
+*/
 double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
 {
     double *a = pt_arr[indices[0]];
     double *b = pt_arr[indices[1]];
     double aux1, aux2;
 
-    double *_return_ort = (double *) malloc(n_dims * n_points * sizeof(double));
-    double **return_ort = (double **)malloc(n_points * sizeof(double *));
-
-    for (long i = 0; i < n_points; i++)
-    {
-        return_ort[i] = &_return_ort[i * n_dims];
-    }
+    double **return_ort = create_array_pts(n_dims, n_points);
 
     double *x = (double *)malloc(sizeof(double) * n_dims);
     double *y = (double *)malloc(sizeof(double) * n_dims);
@@ -202,24 +220,6 @@ double **ort_proj(double **pt_arr, long n_points, int n_dims, int *indices)
     free(x);
     free(y);
     return return_ort;
-}
-
-double **create_array_pts(int n_dims, long np)
-{
-    double *_p_arr;
-    double **p_arr;
-
-    _p_arr = (double *) malloc(n_dims * np * sizeof(double));
-    p_arr = (double **) malloc(np * sizeof(double *));
-    if((_p_arr == NULL) || (p_arr == NULL)){
-        printf("Error allocating array of points, exiting.\n");
-        exit(4);
-    }
-
-    for(long i = 0; i < np; i++)
-        p_arr[i] = &_p_arr[i * n_dims];
-
-    return p_arr;
 }
 
 double **get_points(int argc, char *argv[], int *n_dims, long *np)
@@ -285,6 +285,10 @@ double *avgPoint(double *a, double *b, int n_dims)
     return ret_vect;
 }
 
+/*
+Rcebe o cluster de pontos nas suas projecoes ortogonais.
+Retorna as coordenadas do ponto central das projecoes ortogonais.
+*/
 double *center(double **orto_points, long n_points, int n_dims, int *indices)
 {
     double *center;
@@ -309,6 +313,9 @@ double *center(double **orto_points, long n_points, int n_dims, int *indices)
     return center;
 }
 
+/*
+Funcao recursiva que recebendo um cluster (root) constroi a restante arvore
+*/
 void build_tree(node *root)
 {
     if (root == NULL)
@@ -320,8 +327,6 @@ void build_tree(node *root)
         // Work on this node
         int *indices = furthest(root->pts, root->n_points, root->n_dims);
 
-        //printf("%d %d %d\n", root->n_points, indices[0], indices[1]);
-
         int half = root->n_points / 2;
         double **left = (double **)malloc(sizeof(double *) * half);
         double **right = (double **)malloc(sizeof(double *) * (half + 1));
@@ -332,7 +337,6 @@ void build_tree(node *root)
 
         // Calcualte center and divide (verificar numero de pontos)
         root->center = center(orto_points, root->n_points, root->n_dims, indices);
-        //root->radius = calcRadius(root->pts, root->n_dims, indices, root->center);
         root->radius = calcRadius(root->pts, root->n_dims, root->center, root->n_points);
 
         free(indices);
@@ -354,16 +358,12 @@ void build_tree(node *root)
 
         free(orto_points[0]);
         free(orto_points);
-
-        // call left node
-
         
         if(n_threads > 1 )
         {   
             #pragma omp atomic
                 n_threads--;
 
-            printf("left\n");
             #pragma omp task
             {
                 node *n_left = newNode(left, l_id, root->n_dims, 0);
@@ -373,12 +373,9 @@ void build_tree(node *root)
                 n_threads++;
             }
 
-            printf("n threads: %d\n", n_threads);
-   
             #pragma omp atomic
             n_threads--;
 
-            printf("right\n");
             #pragma omp task
             {
                 node *n_right = newNode(right, r_id, root->n_dims, 0);
@@ -391,15 +388,12 @@ void build_tree(node *root)
             #pragma omp taskwait
         }
         else{
-            //printf("Estou teso de threads \n");
             node *n_left = newNode(left, l_id, root->n_dims, 0);
             root->left = n_left;
-            //printf("\t left\n");
             build_tree(n_left);
-            // call right node
+
             node *n_right = newNode(right, r_id, root->n_dims, 0);
             root->right = n_right;
-            //printf("\t right\n");
             build_tree(n_right);
         }
 
@@ -415,12 +409,10 @@ void build_tree(node *root)
     }
 }
 
-void printNode(node *root, FILE* fp, int my_id)
+void printNode(node *root, int my_id)
 {
     int id_left;
     int id_right;
-    //main_id +=1;
-    //root->id = main_id;
 
     if (root->left == NULL)
         id_left = -1;
@@ -432,38 +424,31 @@ void printNode(node *root, FILE* fp, int my_id)
         id_right = my_id + 2*root->left->n_points;
 
     if (root->left != NULL)
-        printNode(root->left, fp, my_id+1);
+        printNode(root->left, my_id+1);
     if (root->right != NULL)
-        printNode(root->right, fp, my_id + 2*root->left->n_points);
+        printNode(root->right, my_id + 2*root->left->n_points);
 
-    fprintf(fp, "%d %d %d %f ", my_id, id_left, id_right, root->radius);
+    printf("%d %d %d %f ", my_id, id_left, id_right, root->radius);
     for (int j = 0; j < root->n_dims; j++)
     {
-        fprintf(fp, "%f ", root->center[j]);
+        printf("%f ", root->center[j]);
     }
-    fprintf(fp, "\n");
+    printf("\n");
 }
 
 /*
 Recebe a raíz e o número de nós da árvore
 Chama a função printNode
 */
-void printTree(node *root, int n_nodes)
+void printTree(node *root)
 {
-    puts("Escrita de ficheiro");
+    printf("%d %d\n", root->n_dims, 2*root->n_points - 1);
     
-    FILE *fp = NULL;
-    fp = fopen("exemplo.tree", "w");
-    if(!fp) perror("fopen");
-    fprintf(fp, "%d %d\n", root->n_dims, 2*root->n_points - 1);
-    
-    printNode(root, fp, 0);
-    fclose(fp);
+    printNode(root, 0);
 }
 
 int main(int argc, char *argv[])
 {
-    printf("We miss RUTE\n");
     int n_dims = 0;
     long n_points = 0;
     double **pts;
@@ -476,7 +461,6 @@ int main(int argc, char *argv[])
     node *root = newNode(pts, n_points, n_dims, 0);
 
     n_threads = omp_get_max_threads() - 1;
-    printf("n_t: %d\n", n_threads);
 
     //build tree
     #pragma omp parallel
@@ -490,9 +474,9 @@ int main(int argc, char *argv[])
     }
 
     exec_time += omp_get_wtime();
-    fprintf(stderr, "%.2lf s\n", exec_time);
+    fprintf(stderr, "%.2lf\n", exec_time);
 
-    printTree(root,0);
+    printTree(root);
 
     //dump_tree(root);
     if(root != NULL) dump_tree(root);
