@@ -1,9 +1,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <omp.h>
+#include <mpi.h>
 #include <math.h>
 
 #define RANGE 10
+
+int n_threads;
+int depht;
+int last_layer_splits;
+int machine_id;
+double **my_pts;
+long my_n_points;
+int sub_tree_id;
+int* machines;
+int flag;
+int my_machine_id;
+
 
 typedef struct Node
 {
@@ -37,6 +50,7 @@ node *newNode(double **arr, long n_points, int n_dims, int id)
     return aux;
 }
 
+
 /*
 Como o nome indica retorna um vetor que é a copia do argumento
 */
@@ -47,6 +61,24 @@ double* copy_vector(double* vector, int n_dims){
         aux[i] = vector[i];
     }
     return aux;
+}
+
+void printVector(double **vector, int n_points, int n_dims){
+    for(int i=0; i<n_points; i++){
+        for(int j=0; j<n_dims; j++){
+            printf("%f ", vector[i][j]);
+        }
+        printf("\n");
+    }
+    printf("\n\n");
+}
+
+double log_base_2(double num){
+
+    double aux = log(num);
+    double aux2 = log(2);
+
+    return (aux/aux2);
 }
 
 /*
@@ -173,6 +205,36 @@ double **create_array_pts(int n_dims, long np)
     return p_arr;
 }
 
+void sendPoints(double** pts, int id, long n_points, int n_dims, int dest_id, int n_machines){
+
+    //printf("Machine %d has sent to machine %d: n_machines=%d, node_id=%d\n", my_machine_id, id, n_machines, dest_id);
+
+    MPI_Send(&n_points, 1, MPI_LONG, id, 0, MPI_COMM_WORLD);
+    MPI_Send(&dest_id, 1, MPI_INT, id, 1, MPI_COMM_WORLD);
+    MPI_Send(&n_machines, 1, MPI_INT, id, 1, MPI_COMM_WORLD);
+
+    for(long i=0; i < n_points; i++){
+            MPI_Send(pts[i], n_dims, MPI_DOUBLE, id, 2, MPI_COMM_WORLD);
+    }
+}
+
+double** rcvPoints(int src, int n_dims, long *n_points, int *my_id, int *n_machines){
+    MPI_Status st;
+    MPI_Recv(n_points, 1, MPI_LONG, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &st);
+    MPI_Recv(my_id, 1, MPI_INT, MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &st);
+    MPI_Recv(n_machines, 1, MPI_INT, MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, &st);
+
+    //printf("Machine %d has received: n_machines=%d, node_id=%d\n", my_machine_id, *n_machines, *my_id);
+    double **pts = create_array_pts(n_dims, *n_points);
+
+    for(long i=0; i < *n_points; i++){
+            MPI_Recv(pts[i], n_dims, MPI_DOUBLE, st.MPI_SOURCE, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    return pts;
+}
+
+
 /*
 Rcebe o cluster de pontos e os indices dos pontos que irão formar a reta para o qual todos os pontos se irão projetar.
 Computa a projeção na reta de todos os pontos do cluster.
@@ -237,7 +299,7 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
     {
         printf("Illegal number of dimensions (%d), must be above 1.\n", *n_dims);
         exit(2);
-    } */
+    }  */
     *np = atol(argv[2]);
     if (*np < 1)
     {
@@ -316,18 +378,41 @@ double *center(double **orto_points, long n_points, int n_dims, int *indices)
     return center;
 }
 
+void printSingleNode(node *root, int l_points){
+
+    int my_id = root->id;
+    int id_left, id_right;
+
+    if(l_points == 0){
+        id_left = -1;
+        id_right = -1;
+    }
+    else{
+        id_left = my_id+1;
+        id_right = my_id+2*l_points; 
+    }
+
+    printf("%d %d %d %f ", my_id, id_left, id_right, root->radius);
+    for (int j = 0; j < root->n_dims; j++)
+    {
+        printf("%f ", root->center[j]);
+    }
+    printf("\n");
+}
+
 /*
 Funcao recursiva que recebendo um cluster (root) constroi a restante arvore
 */
-int build_tree(node *root, int id)
+void build_tree(node *root, int n_machines, int id)
 {
     if (root == NULL)
     {
-        return -1;
+        return ;
     }
     if (root->n_points > 1)
     {
         // Work on this node
+        root->id = id; 
         int *indices;
         indices = furthest(root->pts, root->n_points, root->n_dims);
 
@@ -363,31 +448,78 @@ int build_tree(node *root, int id)
         free(orto_points[0]);
         free(orto_points);
 
-        // call left node
-        int _id = id + 1;
-        node *n_left = newNode(left, l_id, root->n_dims, _id);
-        root->left = n_left;
-        _id = build_tree(n_left, _id);
+        printSingleNode(root, l_id);
 
-        // call right node
-        _id += 1;
-        node *n_right = newNode(right, r_id, root->n_dims, _id);
-        root->right = n_right;
-        _id = build_tree(n_right, _id);
+        if(n_machines > 1){
+            int aux_n_machines = ceil(n_machines/2);
+            int aux_machine_id = my_machine_id+floor(n_machines/2); 
+            int node_id = root->id + 2*l_id;
+            sendPoints(right, aux_machine_id, r_id, root->n_dims, node_id, aux_n_machines);
+
+
+            n_machines = n_machines - aux_n_machines;
+    
+            node *n_left = newNode(left, l_id, root->n_dims, 0);
+            root->left = n_left;
+            build_tree(n_left, n_machines, id+1);
+
+
+        }
+        else if(n_threads > 1)
+        {
+            #pragma omp atomic
+                n_threads--;
+
+            
+            #pragma omp task
+            {
+                node *n_left = newNode(left, l_id, root->n_dims, 0);
+                root->left = n_left;
+                build_tree(n_left, 1, id+1);
+                #pragma omp atomic
+                n_threads++;
+            }
+
+            #pragma omp atomic
+            n_threads--;
+
+            #pragma omp task
+            {
+                node *n_right = newNode(right, r_id, root->n_dims, 0);
+                root->right = n_right;
+                build_tree(n_right, 1, id+l_id*2);
+                #pragma omp atomic
+                n_threads++;
+            }
+
+            #pragma omp taskwait
+        }
+        else{
+            node *n_left = newNode(left, l_id, root->n_dims, 0);
+            root->left = n_left;
+            build_tree(n_left, 1,id+1);
+
+            node *n_right = newNode(right, r_id, root->n_dims, 0);
+            root->right = n_right;
+            build_tree(n_right, 1, id+l_id*2);
+        }
 
         free(left);
         free(right);
-        return _id;
+        return;
     }
     else
-    {
+    {   
+        root->id = id;
         root->radius = 0;
         root->center = copy_vector(root->pts[0], root->n_dims);
+        printSingleNode(root, 0);
     }
-    return id;
+    return;
 }
 
-void printNode(node *root)
+
+void printNode(node *root, int my_id)
 {
     int id_left;
     int id_right;
@@ -395,62 +527,190 @@ void printNode(node *root)
     if (root->left == NULL)
         id_left = -1;
     else
-        id_left = root->left->id;
+        id_left = my_id+1;
     if (root->right == NULL)
         id_right = -1;
     else
-        id_right = root->right->id;
+        id_right = my_id + 2*root->left->n_points;
 
     if (root->left != NULL)
-        printNode(root->left);
+        printNode(root->left, my_id+1);
     if (root->right != NULL)
-        printNode(root->right);
+        printNode(root->right, my_id + 2*root->left->n_points);
 
-    printf("%d %d %d %f ", root->id, id_left, id_right, root->radius);
-
+    printf("%d %d %d %f ", my_id, id_left, id_right, root->radius);
     for (int j = 0; j < root->n_dims; j++)
     {
         printf("%f ", root->center[j]);
     }
     printf("\n");
+}
 
+void treeTraversal(node* root, node* new_root){
+
+    int thrash = 0;
+    if(machines[machine_id] == root->id){
+        if(machine_id == 0){
+            //printNode(new_root, sub_tree_id);
+        }
+        else{
+            //MPI_Send(&thrash, 1, MPI_INT, machine_id, 3, MPI_COMM_WORLD);
+            //MPI_Recv(&thrash, 1, MPI_INT, machine_id, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        }
+        machine_id++;
+    }
+    else{
+        int id_left;
+        int id_right;
+
+        if (root->left == NULL)
+            id_left = -1;
+        else
+            id_left = root->id+1;
+        if (root->right == NULL)
+            id_right = -1;
+        else
+            id_right = root->id + 2*root->left->n_points;
+
+        if (root->left != NULL)
+            treeTraversal(root->left, new_root);
+        if (root->right != NULL)
+            treeTraversal(root->right, new_root);
+    
+        printf("%d %d %d %f ", root->id, root->id+1, root->right->id, root->radius);
+        for (int j = 0; j < root->n_dims; j++)
+        {
+            printf("%f ", root->center[j]);
+        }
+        printf("\n");
+
+    }
+
+}
+
+void printHeadNode(node *root, int my_id)
+{
+    int id_left;
+    int id_right;
+
+    if (root->left == NULL)
+        return;
+    else
+        id_left = my_id+1;
+    if (root->right == NULL)
+        return;
+    else
+        id_right = my_id + 2*root->left->n_points;
+
+    if (root->left != NULL)
+        printHeadNode(root->left, my_id+1);
+    if (root->right != NULL)
+        printHeadNode(root->right, my_id + 2*root->left->n_points);
+
+    if(root->center != NULL){
+        printf("%d %d %d %f ", my_id, id_left, id_right, root->radius);
+        for (int j = 0; j < root->n_dims; j++)
+        {
+            printf("%f ", root->center[j]);
+        }
+        printf("\n");
+    }
 }
 
 /*
 Recebe a raíz da árvore e o número de nós da árvore
 Chama a função printNode
 */
-void printTree(node *root, int n_nodes)
+void printTree(node *root, node* new_root)
 {
-    printf("%d %d\n", root->n_dims, n_nodes);
-    printNode(root);
+    printf("%d %d\n", root->n_dims, 2*root->n_points - 1);
+
+    printHeadNode(root, 0);
+    printNode(new_root, sub_tree_id);
+    //treeTraversal(root, new_root);
+
 }
+
+/* void recvPrintOrder(node* root){
+
+    int thrash = 0;
+    MPI_Recv(&thrash, 1, MPI_INT, 0, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    printNode(root);
+    MPI_Send(&root->id, 1, MPI_INT, 0, 4, MPI_COMM_WORLD);
+} */
+
+
 
 int main(int argc, char *argv[])
 {
     int n_dims = 0;
-    long n_points = 0;
+    long n_points;
     double **pts;
     int max_id = 0;
     double exec_time;
+    int p;
+    int my_id = 0;
+    int n_machines;
 
-    exec_time = -omp_get_wtime();
-    pts = get_points(argc, argv, &n_dims, &n_points);
+    n_threads = 3 * omp_get_max_threads() - 1;
 
-    node *root = newNode(pts, n_points, n_dims, 0);
 
-    //build tree
-    max_id=build_tree(root, 0);
+    MPI_Init (&argc, &argv);
+    MPI_Comm_rank (MPI_COMM_WORLD, &my_machine_id);
+    MPI_Comm_size (MPI_COMM_WORLD, &p);
 
-    exec_time += omp_get_wtime();
-    fprintf(stderr, "%.1lf\n", exec_time);
+    machine_id = 0;
+
+    node *root = NULL;
+    node *new_root = NULL;
+
+    if(my_machine_id == 0){
+        //printf("depht: %d\n", depht);
+        //printf("llsplits: %d\n", last_layer_splits)
+        n_machines = p;
+        exec_time = -omp_get_wtime();
+        pts = get_points(argc, argv, &n_dims, &n_points);
+
+        root = newNode(pts, n_points, n_dims, 0);
+
+        machines = (int*)malloc(p * sizeof(int));
+        //printTree(root, root->n_points);
+
+        printf("%d %d\n", root->n_dims, 2*root->n_points - 1);
+        
+        build_tree(root, n_machines, 0);
+
+    }
+    else{
+        n_dims = atoi(argv[1]);
+        pts = rcvPoints(0, n_dims, &n_points, &my_id, &n_machines);
+        //printf("Machine %d has id %d\n", id, my_id);
+        root = newNode(pts, n_points, n_dims, my_id);
+
+        build_tree(root, n_machines, my_id);
+
+    }
+
+
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if(my_machine_id == 0){
+        exec_time += omp_get_wtime();
+        fprintf(stderr, "%.1lf\n", exec_time);
+    }
 
     free(pts[0]);
     free(pts);
 
-    printTree(root, (max_id+1));
+
+    MPI_Finalize();
+    //printTree(root, (max_id+1));
 
     //dump_tree(root);
-    if(root != NULL) dump_tree(root);
+    //if(root != NULL) dump_tree(root);
+
+    return 0;
    
 }

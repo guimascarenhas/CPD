@@ -233,11 +233,11 @@ double **get_points(int argc, char *argv[], int *n_dims, long *np)
         exit(1);
     }
     *n_dims = atoi(argv[1]);
-/*     if (*n_dims < 2)
+    if (*n_dims < 2)
     {
         printf("Illegal number of dimensions (%d), must be above 1.\n", *n_dims);
         exit(2);
-    } */
+    }
     *np = atol(argv[2]);
     if (*np < 1)
     {
